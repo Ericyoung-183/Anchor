@@ -1,5 +1,11 @@
 # Anchor Changelog
 
+## 0.3.1 - 2026-06-02
+
+- Render active agenda context with item text so non-ASCII agenda items remain readable in hook context.
+- Treat configured canonical TODO paths outside the project root as `invalid_canonical` and refuse to read or write them.
+- Resolve the repository Git exclude path for linked worktrees so project-local `.anchor/` runtime files do not appear in `git status`.
+
 ## 0.3.0 - 2026-06-01
 
 - Added Todo Bridge commands for canonical TODO discovery, configuration, add, start, and sync.

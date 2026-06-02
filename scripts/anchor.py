@@ -11,6 +11,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 import uuid
 from dataclasses import dataclass
@@ -145,6 +146,28 @@ def can_auto_enable_project(project_root: Path) -> bool:
     )
 
 
+def git_info_exclude_path(project_root: Path) -> Path | None:
+    if not (project_root / ".git").exists():
+        return None
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(project_root), "rev-parse", "--git-path", "info/exclude"],
+            capture_output=True,
+            check=True,
+            text=True,
+        )
+        value = result.stdout.strip()
+        if value:
+            path = Path(value)
+            return path if path.is_absolute() else (project_root / path).resolve()
+    except (OSError, subprocess.CalledProcessError):
+        pass
+    dot_git = project_root / ".git"
+    if dot_git.is_dir():
+        return dot_git / "info" / "exclude"
+    return None
+
+
 def resolve_storage(
     cwd: str | Path,
     thread_id: str,
@@ -265,9 +288,10 @@ def init_project(root: str | Path, project_name: str | None = None) -> dict[str,
         config = {**existing, "project_root": str(project_root), "version": VERSION}
     write_json(config_path, config)
 
-    git_exclude = project_root / ".git" / "info" / "exclude"
-    if git_exclude.exists():
-        text = git_exclude.read_text(encoding="utf-8")
+    git_exclude = git_info_exclude_path(project_root)
+    if git_exclude:
+        git_exclude.parent.mkdir(parents=True, exist_ok=True)
+        text = git_exclude.read_text(encoding="utf-8") if git_exclude.exists() else ""
         additions = [pattern for pattern in [".anchor/config.json", ".anchor/state/"] if pattern not in text]
         if additions:
             suffix = "" if text.endswith("\n") or not text else "\n"
@@ -384,6 +408,21 @@ def discover_todo_candidates(project_root: Path) -> list[dict[str, Any]]:
 def configured_todo_status(project_root: Path, config_path: Path, config: dict[str, Any], candidates: list[dict[str, Any]]) -> dict[str, Any]:
     todo_config = config.get("todo") if isinstance(config.get("todo"), dict) else {}
     canonical_relpath = str(todo_config.get("canonical_path", "")).strip()
+    try:
+        normalized_relpath = normalize_project_relpath(project_root, canonical_relpath) if canonical_relpath else ""
+    except ValueError as exc:
+        return {
+            "status": "invalid_canonical",
+            "project_root": str(project_root),
+            "config_path": str(config_path),
+            "canonical_path": "",
+            "canonical_relpath": canonical_relpath,
+            "candidates": candidates,
+            "open_count": 0,
+            "open_items": [],
+            "error": str(exc),
+        }
+    canonical_relpath = normalized_relpath
     canonical_path = project_root / canonical_relpath if canonical_relpath else None
     if canonical_relpath and (not canonical_path or not canonical_path.is_file()):
         return {
@@ -489,6 +528,8 @@ def ensure_configured_todo_for_write(cwd: str | Path) -> dict[str, Any]:
         raise ValueError("Multiple TODO candidates found; run todo-configure before writing TODO items")
     if status["status"] == "missing_canonical":
         raise ValueError("Canonical TODO file is missing; run todo-configure before writing TODO items")
+    if status["status"] == "invalid_canonical":
+        raise ValueError(status.get("error") or "Configured canonical TODO path is invalid")
     return status
 
 
@@ -511,7 +552,7 @@ def todo_start(
     title: str = "Project TODO",
 ) -> dict[str, Any]:
     status = todo_status(cwd)
-    if status["status"] in {"needs_selection", "missing_canonical"}:
+    if status["status"] in {"needs_selection", "missing_canonical", "invalid_canonical"}:
         return status
     if status["status"] == "unconfigured" or status["open_count"] == 0:
         return {**status, "status": "empty"}
@@ -645,6 +686,24 @@ def derive_current_path(tracker: dict[str, Any]) -> list[str]:
         current = agenda.get("current_item_id")
         if current:
             path.append(current)
+    return path
+
+
+def derive_current_display_path(tracker: dict[str, Any]) -> list[str]:
+    path = []
+    for agenda_id in tracker.get("active_stack", []):
+        agenda = tracker.get("agendas", {}).get(agenda_id)
+        if not agenda:
+            continue
+        current = agenda.get("current_item_id")
+        if not current:
+            continue
+        try:
+            item = find_item(agenda, current)
+        except KeyError:
+            path.append(str(current))
+            continue
+        path.append(compact_text(item.get("text")) or str(current))
     return path
 
 
@@ -1142,7 +1201,7 @@ def render_context(
     tracker, storage = load_tracker(cwd, thread_id, global_state_root)
     if tracker.get("status") != "active" or not tracker.get("active_stack"):
         return ""
-    path = " > ".join(current_path(cwd, thread_id, global_state_root)) or "(none)"
+    path = " > ".join(derive_current_display_path(tracker)) or "(none)"
     lines = [
         "[Anchor]",
         f"Anchor project root: {tracker.get('project_root') or storage.project_root}",

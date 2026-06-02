@@ -69,11 +69,13 @@ Item statuses:
 - A child agenda must close, pause, or defer before the parent advances.
 - Closing a child agenda marks the parent `child_done` only when the child has no unresolved items; blocked or deferred child items keep the parent unresolved.
 - Project-local writes require `.anchor/config.json`; `init` may auto-create it only for a safe Git root.
+- Project-local `.anchor/config.json` and `.anchor/state/` are ignored through the repository's Git exclude path, including linked worktrees.
 - Existing same-thread global-fallback trackers are not migrated or hidden by later project-local enablement.
 - Broad roots, non-Git roots, unwritable roots, and forced-global mode use global fallback.
 - Project TODO work uses one canonical Markdown ledger stored in `.anchor/config.json` as `todo.canonical_path`.
 - Multiple TODO candidates require explicit `todo-configure`; Anchor must not merge or guess.
 - A configured canonical TODO path that no longer exists is `missing_canonical`, not an empty TODO list.
+- A configured canonical TODO path that resolves outside the project root is `invalid_canonical`; Anchor must not read or write it.
 - `todo-sync` only runs for closed or paused TODO-backed agendas; it marks actioned, decided, or child_done root TODO items done, while blocked and deferred items stay open.
 - Runtime state is not long-term project memory.
 
@@ -91,7 +93,7 @@ Item statuses:
 - `pause` pauses the active tracker without losing the stack.
 - `resume` reactivates a paused tracker.
 - `abandon` closes the tracker as abandoned and clears the active stack.
-- `render-context` prints short hook context for active trackers; `--max-context-chars` caps output and `--stale-after-minutes` adds a stale-state warning.
+- `render-context` prints short hook context for active trackers using item text for the current path; `--max-context-chars` caps output and `--stale-after-minutes` adds a stale-state warning.
 - `export-unresolved` prints Markdown handoff text for pending, discussing, child_agenda_active, deferred, and blocked items. It does not write Codex memory or append tracker events.
 - `todo-status` discovers/configures the canonical TODO ledger when unambiguous and reports open checklist items.
 - `todo-configure --path <file> [--create]` sets the canonical TODO ledger.
