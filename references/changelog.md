@@ -1,5 +1,9 @@
 # Anchor Changelog
 
+## 0.3.2 - 2026-06-02
+
+- Require root and child agenda starts to show a concise Whole Picture with the current item marked before handling the first item.
+
 ## 0.3.1 - 2026-06-02
 
 - Render active agenda context with item text so non-ASCII agenda items remain readable in hook context.

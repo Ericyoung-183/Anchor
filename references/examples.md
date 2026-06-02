@@ -6,13 +6,13 @@ Use these examples to decide when to create, advance, pause, or avoid Anchor sta
 
 User asks for a diagnostic review. The assistant produces findings A, B, C, D, E, F, G. User says "我们一个一个过".
 
-Action: create a root tracker with A-G and start at A.
+Action: create a root tracker with A-G, show the Whole Picture with the current item marked, then start at A.
 
 ### Example 2: Child Agenda Under C
 
 While discussing C, the assistant identifies subquestions 1, 2, 3, 4, 5. User says "这几个也逐个处理".
 
-Action: `push-child` under C, start at 1, and do not return to D until the child agenda closes, pauses, or is deferred.
+Action: `push-child` under C, show the child Whole Picture with the current item marked, start at 1, and do not return to D until the child agenda closes, pauses, or is deferred.
 
 ### Example 3: Next After Child Item
 
