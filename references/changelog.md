@@ -1,8 +1,14 @@
 # Anchor Changelog
 
+## 0.3.3 - 2026-06-06
+
+- Added `interrupt` for temporary topic switches without replacing the frozen active agenda.
+- Added Codex session audit mode to pressure checks so injected AGENTS/system/Overwatch text does not create transcript false positives.
+
 ## 0.3.2 - 2026-06-02
 
 - Require root and child agenda starts to show a concise Whole Picture with the current item marked before handling the first item.
+- Return `agenda_snapshot` and `whole_picture` from `init` and `push-child` so the display can come from helper state, not model memory.
 
 ## 0.3.1 - 2026-06-02
 

@@ -38,12 +38,13 @@ Use this trigger matrix before responding to list-processing turns:
 | user skips current item | `defer`, then advance only when appropriate |
 | user is blocked on current item | `block`, preserving reason |
 | user pauses the agenda | `pause`; do not keep injecting active context |
+| user temporarily switches topics | `interrupt` with source fields; process the temporary agenda first |
 | user resumes | `resume`, then read `status` |
 | ambiguous list | ask one short confirmation before creating state |
 | user says not to track | do not create tracker; abandon candidate state |
 | no tracker exists but user says “back/next” | do not guess; rebuild source or ask |
 
-When creating root and child agenda state, include `--source-ref` and `--source-excerpt` when available. Before discussing the first item, show a concise "Whole Picture" of the full agenda, mark the current item, then continue. Keep it brief: agenda title, ordered items, current marker, and the first item to handle.
+When creating root and child agenda state, include `--source-ref` and `--source-excerpt` when available. Before discussing the first item, show the helper-returned `whole_picture` text, or an equivalent concise "Whole Picture" of the full agenda, mark the current item, then continue. Keep it brief: agenda title, ordered items, current marker, and the first item to handle.
 
 ## Storage Rule
 

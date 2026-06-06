@@ -750,6 +750,79 @@ def current_item_snapshot(tracker: dict[str, Any]) -> dict[str, Any] | None:
     }
 
 
+def agenda_parent_display_path(tracker: dict[str, Any], agenda_id: str) -> list[str]:
+    path = []
+    for stack_agenda_id in tracker.get("active_stack", []):
+        if stack_agenda_id == agenda_id:
+            break
+        agenda = tracker.get("agendas", {}).get(stack_agenda_id)
+        if not agenda:
+            continue
+        item_id = agenda.get("current_item_id")
+        if not item_id:
+            continue
+        try:
+            item = find_item(agenda, item_id)
+        except KeyError:
+            path.append(str(item_id))
+            continue
+        path.append(compact_text(item.get("text")) or str(item_id))
+    return path
+
+
+def agenda_snapshot(tracker: dict[str, Any], agenda_id: str) -> dict[str, Any]:
+    agenda = tracker["agendas"][agenda_id]
+    current_item_id = agenda.get("current_item_id")
+    return {
+        "agenda_id": agenda_id,
+        "title": agenda.get("title", ""),
+        "parent_agenda_id": agenda.get("parent_agenda_id"),
+        "parent_item_id": agenda.get("parent_item_id"),
+        "source_ref": agenda.get("source_ref", ""),
+        "source_excerpt": agenda.get("source_excerpt", ""),
+        "current_item_id": current_item_id,
+        "items": [
+            {
+                "id": item.get("id"),
+                "text": item.get("text", ""),
+                "status": item.get("status"),
+                "current": item.get("id") == current_item_id,
+            }
+            for item in agenda.get("items", [])
+        ],
+    }
+
+
+def render_whole_picture(tracker: dict[str, Any], agenda_id: str) -> str:
+    snapshot = agenda_snapshot(tracker, agenda_id)
+    title = compact_text(snapshot.get("title")) or agenda_id
+    parent_path = agenda_parent_display_path(tracker, agenda_id)
+    prefix = " > ".join(parent_path)
+    lines = [f"Whole Picture: {title}"]
+    current_text = ""
+    for index, item in enumerate(snapshot["items"], start=1):
+        item_text = compact_text(item.get("text")) or str(item.get("id") or index)
+        item_label = f"{index}. {item_text}"
+        if prefix:
+            item_label = f"{prefix} > {item_label}"
+        if item.get("current"):
+            item_label += " ← 当前"
+            current_text = item_text
+        lines.append(item_label)
+    if current_text:
+        current_label = f"{prefix} > {current_text}" if prefix else current_text
+        lines.extend(["", f"接下来先处理：{current_label}"])
+    return "\n".join(lines)
+
+
+def agenda_start_payload(tracker: dict[str, Any], agenda_id: str) -> dict[str, Any]:
+    return {
+        "current_path": derive_current_path(tracker),
+        "agenda_snapshot": agenda_snapshot(tracker, agenda_id),
+        "whole_picture": render_whole_picture(tracker, agenda_id),
+    }
+
+
 def status_report(cwd: str | Path, thread_id: str, global_state_root: str | Path | None = None) -> dict[str, Any]:
     tracker, storage = load_tracker(cwd, thread_id, global_state_root)
     return {
@@ -967,7 +1040,7 @@ def init_tracker(
         }
         result = save_tracker(tracker, storage)
         append_event(storage, {"type": "init_tracker", "title": title, "items": items, "source_ref": source_ref})
-    return {**result, "current_path": current_path(cwd, thread_id, global_state_root)}
+    return {**result, **agenda_start_payload(tracker, "agenda-root")}
 
 
 def complete_current(
@@ -1131,6 +1204,9 @@ def next_item(
                 parent_status, parent_conclusion = parent_status_for_closed_child(agenda)
                 set_item_status(find_item(parent, parent_item_id), parent_status, parent_conclusion)
                 continue
+            if agenda.get("interrupts_stack") and tracker["active_stack"]:
+                result = save_tracker(tracker, storage)
+                return {**result, "current_path": derive_current_path(tracker)}
             tracker["status"] = "closed"
             break
 
@@ -1188,7 +1264,51 @@ def push_child(
         tracker["active_stack"].append(child_id)
         result = save_tracker(tracker, storage)
         append_event(storage, {"type": "push_child", "parent_item_id": parent_item_id, "agenda_id": child_id, "source_ref": source_ref})
-    return {**result, "current_path": current_path(cwd, thread_id, global_state_root)}
+    return {**result, **agenda_start_payload(tracker, child_id)}
+
+
+def interrupt_tracker(
+    cwd: str | Path,
+    thread_id: str,
+    title: str,
+    items: list[str],
+    global_state_root: str | Path | None = None,
+    reason: str = "",
+    source_ref: str = "",
+    source_excerpt: str = "",
+) -> dict[str, Any]:
+    if not items:
+        raise ValueError("Interrupt agenda requires at least one item")
+    storage = resolve_storage(cwd, thread_id, global_state_root)
+    with storage_lock(storage):
+        tracker = read_tracker(storage)
+        ensure_tracker_active(tracker)
+        agenda_id_base = f"agenda-{slug(title)}-interrupt"
+        agenda_id = agenda_id_base
+        suffix = 2
+        while agenda_id in tracker["agendas"]:
+            agenda_id = f"{agenda_id_base}-{suffix}"
+            suffix += 1
+
+        agenda_items = make_items(items)
+        set_item_status(agenda_items[0], "discussing")
+        tracker["agendas"][agenda_id] = {
+            "id": agenda_id,
+            "title": title,
+            "parent_agenda_id": None,
+            "parent_item_id": None,
+            "source_ref": source_ref,
+            "source_excerpt": source_excerpt,
+            "status": "active",
+            "current_item_id": agenda_items[0]["id"],
+            "items": agenda_items,
+            "interrupts_stack": True,
+            "interrupt_reason": reason,
+        }
+        tracker["active_stack"].append(agenda_id)
+        result = save_tracker(tracker, storage)
+        append_event(storage, {"type": "interrupt_tracker", "agenda_id": agenda_id, "reason": reason, "source_ref": source_ref})
+    return {**result, **agenda_start_payload(tracker, agenda_id)}
 
 
 def render_context(
@@ -1300,6 +1420,16 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--source-excerpt", default="")
     p.add_argument("--global-state-root")
 
+    p = sub.add_parser("interrupt")
+    p.add_argument("--cwd", required=True)
+    p.add_argument("--thread-id", required=True)
+    p.add_argument("--title", required=True)
+    p.add_argument("--item", action="append", required=True)
+    p.add_argument("--reason", default="")
+    p.add_argument("--source-ref", default="")
+    p.add_argument("--source-excerpt", default="")
+    p.add_argument("--global-state-root")
+
     p = sub.add_parser("render-context")
     p.add_argument("--cwd", required=True)
     p.add_argument("--thread-id", required=True)
@@ -1362,6 +1492,8 @@ def main(argv: list[str] | None = None) -> int:
             result = abandon_tracker(args.cwd, args.thread_id, args.global_state_root, args.reason)
         elif args.command == "push-child":
             result = push_child(args.cwd, args.thread_id, args.parent_item_id, args.title, args.item, args.global_state_root, args.source_ref, args.source_excerpt)
+        elif args.command == "interrupt":
+            result = interrupt_tracker(args.cwd, args.thread_id, args.title, args.item, args.global_state_root, args.reason, args.source_ref, args.source_excerpt)
         elif args.command == "render-context":
             print(render_context(args.cwd, args.thread_id, args.global_state_root, args.max_context_chars, args.stale_after_minutes))
             return 0

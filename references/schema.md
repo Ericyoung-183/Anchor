@@ -66,6 +66,7 @@ Item statuses:
 - `active_stack[-1]` is the only agenda that “next” may advance.
 - `next` cannot advance while the current deepest item is still discussing or has an active child agenda.
 - `push-child` can only attach a child agenda to the current deepest item while that item is discussing.
+- `interrupt` may push a temporary agenda above the current stack; closing it returns to the previous current item without replacing the frozen agenda.
 - A child agenda must close, pause, or defer before the parent advances.
 - Closing a child agenda marks the parent `child_done` only when the child has no unresolved items; blocked or deferred child items keep the parent unresolved.
 - Project-local writes require `.anchor/config.json`; `init` may auto-create it only for a safe Git root.
@@ -82,8 +83,8 @@ Item statuses:
 ## Commands
 
 - `init-project <root>` explicitly enables project-local storage.
-- `init` creates a root agenda and may auto-enable project-local storage for a safe Git project; it refuses to replace an active or paused tracker for the same thread. Use `--source-ref` and `--source-excerpt` when the list source is known.
-- `push-child` creates a child agenda under the active item; use source fields when the child list source is known.
+- `init` creates a root agenda and may auto-enable project-local storage for a safe Git project; it refuses to replace an active or paused tracker for the same thread. Use `--source-ref` and `--source-excerpt` when the list source is known. It returns `agenda_snapshot` and `whole_picture` for immediate display.
+- `push-child` creates a child agenda under the active item; use source fields when the child list source is known. It returns `agenda_snapshot` and `whole_picture` for immediate display.
 - `status` prints current stack, current item, unresolved counts, and tracker path.
 - `validate` checks tracker references, statuses, stack integrity, and child-parent links.
 - `next` advances the deepest active agenda.
@@ -93,6 +94,7 @@ Item statuses:
 - `pause` pauses the active tracker without losing the stack.
 - `resume` reactivates a paused tracker.
 - `abandon` closes the tracker as abandoned and clears the active stack.
+- `interrupt` starts a temporary agenda above the current stack when the user switches topics; it returns `agenda_snapshot` and `whole_picture` for immediate display.
 - `render-context` prints short hook context for active trackers using item text for the current path; `--max-context-chars` caps output and `--stale-after-minutes` adds a stale-state warning.
 - `export-unresolved` prints Markdown handoff text for pending, discussing, child_agenda_active, deferred, and blocked items. It does not write Codex memory or append tracker events.
 - `todo-status` discovers/configures the canonical TODO ledger when unambiguous and reports open checklist items.
@@ -100,3 +102,8 @@ Item statuses:
 - `todo-add --text <text>` appends an open TODO, creating `TODO.md` if no ledger exists.
 - `todo-start` creates an Anchor agenda from open canonical TODO items.
 - `todo-sync` writes a closed or paused TODO-backed agenda back to the canonical TODO ledger.
+
+## Transcript Pressure Check
+
+- Default mode reads curated transcript fixtures.
+- `scripts/anchor_pressure_check.py --codex-session <session.jsonl>` reads raw Codex session JSONL, ignoring injected AGENTS/system/Overwatch noise and keeping real user, assistant, Anchor command, and Whole Picture events.
