@@ -1,5 +1,16 @@
 # Anchor Changelog
 
+## 0.3.5 - 2026-06-06
+
+- Tightened raw Codex session pressure checks so helper-returned `whole_picture` only satisfies the rule after the assistant shows a user-visible Whole Picture.
+- Reduced raw-session false positives from tool output, `--help`, failed helper commands, smoke-test helper calls, assistant review summaries, and method phrases such as `逐条核验`.
+- Added real-session regression fixtures for missing user-visible Whole Picture after `init` and `interrupt`.
+
+## 0.3.4 - 2026-06-06
+
+- Packaged `anchor_pressure_check.py` with the Skill so transcript pressure checks are available in installed and published product copies.
+- Preserve real user text that appears after injected Codex context in raw session audit mode.
+
 ## 0.3.3 - 2026-06-06
 
 - Added `interrupt` for temporary topic switches without replacing the frozen active agenda.

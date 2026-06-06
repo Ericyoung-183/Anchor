@@ -57,6 +57,7 @@ When the user asks about remaining TODOs, continuing project TODOs, recording a 
 ## Helper
 
 Use `scripts/anchor.py` for deterministic state handling.
+Use `scripts/anchor_pressure_check.py` for transcript pressure checks.
 
 References:
 

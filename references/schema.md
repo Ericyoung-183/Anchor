@@ -107,3 +107,4 @@ Item statuses:
 
 - Default mode reads curated transcript fixtures.
 - `scripts/anchor_pressure_check.py --codex-session <session.jsonl>` reads raw Codex session JSONL, ignoring injected AGENTS/system/Overwatch noise and keeping real user, assistant, Anchor command, and Whole Picture events.
+- In raw Codex session mode, helper output alone does not satisfy `missing-whole-picture`: the assistant must show a user-visible Whole Picture after `init`, `push-child`, or `interrupt`. Failed helper commands, `--help`, and smoke-test helper calls are excluded from this display rule.
